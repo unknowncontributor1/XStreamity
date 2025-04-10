@@ -300,6 +300,10 @@ class XStreamity_Vod_Categories(Screen):
             sortlist = [_("Sort: A-Z"), _("Sort: Z-A"), _("Sort: Added"), _("Sort: Year"), _("Sort: Original")]
             activelist = self.list2
 
+        custom_sort = set(glob.active_playlist.get("player_info", {}).get("vod_custom_sort", []))
+        if custom_sort:
+            sortlist.append(_("Sort: Custom"))
+
         current_sort = self.sortText
 
         if not current_sort:
@@ -329,6 +333,17 @@ class XStreamity_Vod_Categories(Screen):
 
         elif current_sort == _("Sort: Original"):
             activelist.sort(key=lambda x: x[0], reverse=False)
+
+        elif current_sort == _("Sort: Custom"):
+            def get_custom_index(name, patternlist):
+                result = len(patternlist) # initialize: in the end
+                for index, pattern in enumerate(patternlist):
+                    if pattern.lower() in name.lower(): # case insensitive
+                        result = index
+                        break;
+                return result
+            activelist.sort(key=lambda x: x[0], reverse=False) # original sort first
+            activelist.sort(key=lambda x: get_custom_index(x[1], custom_sort), reverse=False)
 
         next_sort_type = next(islice(cycle(sortlist), self.sortindex + 1, None))
         self.sortText = str(next_sort_type)
@@ -368,6 +383,8 @@ class XStreamity_Vod_Categories(Screen):
         currentPlaylist = glob.active_playlist
         currentCategoryList = currentPlaylist.get("data", {}).get("vod_categories", [])
         currentHidden = set(currentPlaylist.get("player_info", {}).get("vodhidden", []))
+        vod_categories_only = set(currentPlaylist.get("player_info", {}).get("vod_categories_only", []))
+        vod_categories_exclude = set(currentPlaylist.get("player_info", {}).get("vod_categories_exclude", []))
 
         hiddenfavourites = "-1" in currentHidden
         hiddenrecent = "-2" in currentHidden
@@ -385,6 +402,16 @@ class XStreamity_Vod_Categories(Screen):
             category_name = item.get("category_name", "No category")
             category_id = item.get("category_id", "999999")
             hidden = category_id in currentHidden
+            if vod_categories_only:
+                if not any([re.fullmatch(f"^{re.escape(pattern)}.*$", category_name) for pattern in vod_categories_only]):
+                    # TODO: persistently hide?
+                    # currentPlaylist.get("player_info", {}).get("vodhidden", []).append(category_id)
+                    continue # TODO: omit or just hide?
+            if vod_categories_exclude:
+                if any([re.fullmatch(f"^{re.escape(pattern)}.*$", category_name) for pattern in vod_categories_exclude]):
+                    # TODO: persistently hide?
+                    # currentPlaylist.get("player_info", {}).get("vodhidden", []).append(category_id)
+                    continue # TODO: omit or just hide?
             self.list1.append([index, str(category_name), str(category_id), hidden])
 
         glob.originalChannelList1 = self.list1[:]
